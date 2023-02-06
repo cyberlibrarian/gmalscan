@@ -10,13 +10,13 @@ The diversity of malware being distributed and the number of software
 packages being impersonated was substantial.
 
 This python script can help identify malware distributed via
-Google Ads. It was inspired by the work of Randy McEoin @rmceoin who
+Google Ads. It was inspired by the work of [Randy McEoin](https://infosec.exchange/@rmceoin)  who
 published a bash/python program to do the same thing.
 
-Randy's gmalvertising script used bash and curl to search Google for a list of
-popular software packages. It used a python script to parse out the Google Ad
-links and compare them against a list of known malicious and known acceptable
-links.
+Randy's [gmalvertising](https://github.com/rmceoin/gmalvertising]) script 
+used bash and curl to search Google for a list of popular software packages. 
+It used a python script to parse out the Google Ad links and compare them 
+against a list of known malicious and known acceptable links.
 
 This python script (gmalscan) takes a similar but different approach. We use
 Selenium Webdriver to control a Chrome web browser. We will search google for
@@ -42,4 +42,11 @@ or Browsers. A future version will be more broadly compatible.
 3. You will need to install the Google WebDriver
 
 ./gmalscan --help
+
+Screenshots will be saved to the current directory, prefixed by a UUID generated
+for each session and suffixed by the name of the page being screenshot.
+
+JSON output is printed to STDOUT for now.
+
+
 
