@@ -13,7 +13,7 @@ This python script can help identify malware distributed via
 Google Ads. It was inspired by the work of [Randy McEoin](https://infosec.exchange/@rmceoin)  who
 published a bash/python program to do the same thing.
 
-Randy's [gmalvertising](https://github.com/rmceoin/gmalvertising]) script 
+Randy's [gmalvertising](https://github.com/rmceoin/gmalvertising) script 
 used bash and curl to search Google for a list of popular software packages. 
 It used a python script to parse out the Google Ad links and compare them 
 against a list of known malicious and known acceptable links.
@@ -41,7 +41,12 @@ or Browsers. A future version will be more broadly compatible.
 2. You will need to pip install selenium
 3. You will need to install the Google WebDriver
 
-./gmalscan --help
+## Example Usage
+```
+python .\gmalscan.py --help
+
+python .\gmalscan.py -v -s "buy teamviewer" -i "teamviewer.com" -i "www.teamviewer.com" -i "services.teamviewer.com" -i "www.pulseway.com" -i "www.remotepc.com"
+```
 
 Screenshots will be saved to the current directory, prefixed by a UUID generated
 for each session and suffixed by the name of the page being screenshot.
