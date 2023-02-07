@@ -79,7 +79,8 @@ def main():
     parser.add_argument('-x', '--x-position', dest='x_pos', type=int, default=0, help='X-axis position for the browser window.')
     parser.add_argument('-y', '--y-position', dest='y_pos', type=int, default=0, help='Y-axis position for the browsre window.')
     parser.add_argument('-w', '--width', dest="width", type=int, default=1920, help='Width of the browser window.')
-    parser.add_argument('-t', '--height', dest="height", type=int, default=1080, help='Height of the browser window.')    
+    parser.add_argument('-t', '--height', dest="height", type=int, default=1080, help='Height of the browser window.')  
+    parser.add_argument('-o', '--output-file', dest="output_file", type=str, help='Save to specified output file in JSON format. Default is named with search terms and a UUID.')
     # TODO: parser.add_argument('-a', '--user-agent', dest="user_agent", type=str, help='User-agent to use instead of the default.')
     # TODO: Support changing the browser used by WebDriver (this requires changing search/xpath/css/Key syntax)
     # TODO: Detect operating system (this requires Key syntax changes maybe)
@@ -137,6 +138,7 @@ def main():
     ads = driver.find_elements(By.CSS_SELECTOR, 'a[data-rw]')
     
     driver.save_screenshot(f"{session['session']['uuid']}-{session['session']['search_terms']}.png")
+    session['session']['search_screenshot'] = f"{session['session']['uuid']}-{session['session']['search_terms']}.png"
 
     ## Visit every ad in the ad results
     print(f'Ignore list: {ignore_list}') if args.verbose else None
@@ -186,23 +188,28 @@ def main():
             try:
                 driver.switch_to.window(driver.window_handles[1])
                 time.sleep(1) if args.verbose else None
-                driver.save_screenshot(f"{session['session']['uuid']}-{hostname}.png")
+                switch_to_tab = True
             except:
-                print("Switching to the new tab failed. What happened when we tried to open it?!") if args.verbose else None
+                print("Switching to the new tab failed. Switching back to main window to continue.") if args.verbose else None
+                switch_to_tab = False
 
-            # Search the page for download links
-            # TODO: make this compatible with multiple browsers
-            downloads = driver.find_elements(By.XPATH, '//a[contains(translate(., "DOWNLAD", "downlad"), "download")]')
-            downlinks = []
-            for download in downloads:
-                # log each download link
-                downlink = {}
-                downlink['ohtml'] = download.get_attribute('outerHTML')
-                downlink['ihtml'] = download.get_attribute('innerHTML')
-            
-            # close the tab and return to the original window
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
+            if switch_to_tab:
+                driver.save_screenshot(f"{session['session']['uuid']}-{hostname}.png")
+                log['screenshot'] = f"{session['session']['uuid']}-{hostname}.png"
+
+                # Search the page for download links
+                # TODO: make this compatible with multiple browsers
+                downloads = driver.find_elements(By.XPATH, '//a[contains(translate(., "DOWNLAD", "downlad"), "download")]')
+                downlinks = []
+                for download in downloads:
+                    # log each download link
+                    downlink = {}
+                    downlink['ohtml'] = download.get_attribute('outerHTML')
+                    downlink['ihtml'] = download.get_attribute('innerHTML')
+                
+                # close the tab and return to the original window
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
             
         else:
             # The ad is on our ignore list
@@ -213,7 +220,15 @@ def main():
     driver.quit()
 
     
-    print(json.dumps(session, indent=4))
+    print(json.dumps(session, indent=4)) if args.verbose else None
+    if args.output_file:
+        output_file = args.output_file
+    else:
+        output_file = f'{session["session"]["search_terms"]}-{session["session"]["uuid"]}.json'
+        
+    # save session output to json file
+    with open(output_file, "w") as outfile:
+        json.dump(session, outfile, indent=4)
 
 if __name__ == "__main__":
     main()
