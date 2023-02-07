@@ -55,6 +55,11 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 #from selenium.webdriver.firefox.service import Service as FirefoxService
 #from selenium.webdriver.ie.service import Service as IEService
 
+def load_ignore_list_from_file(filename):
+    """ Load a list of hostnames to ignore from a file and return as a list """
+    with open(filename) as hostnames:
+        return [hostname.rstrip() for hostname in hostnames]
+    
 def main():
     app_version = '11' # I will use single integer version ID
 
@@ -70,7 +75,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('-s', '--search-terms', dest='search_terms', type=str, help='Google search query')
     parser.add_argument('-i', '--ignore-site', dest='ignore_list', action='append', type=str, help='DNS name to ignore in google ads. Can be specified multiple times.')
-    # TODO: parser.add_argument('-f', '--ignore-file', dest='ignore_list_file', type=str, help='A file with DNS names to ignore in google ads. One hostname per line.')
+    parser.add_argument('-f', '--ignore-file', dest='ignore_list_file', type=str, help='A file with DNS names to ignore in google ads. One hostname per line.')
     parser.add_argument('-x', '--x-position', dest='x_pos', type=int, default=0, help='X-axis position for the browser window.')
     parser.add_argument('-y', '--y-position', dest='y_pos', type=int, default=0, help='Y-axis position for the browsre window.')
     parser.add_argument('-w', '--width', dest="width", type=int, default=1920, help='Width of the browser window.')
@@ -81,6 +86,12 @@ def main():
         
 #    parser.add_argument('', type=shelp='')
     args = parser.parse_args()
+
+    if args.ignore_list_file:
+        try:
+            ignore_list = args.ignore_list + load_ignore_list_from_file(args.ignore_list_file)
+        except:
+            print(f'Failed to load ignore list from {args.ignore_list_file}.') if args.verbose else None
 
     ## Configure WebDriver
 #    profile.set_preference("general.useragent.override", args.user_agent)
@@ -94,12 +105,12 @@ def main():
     # Start logging our session
     session = { 
         'session' : {
-            'uuid' :        uuid.uuid1(),
+            'uuid' :        str(uuid.uuid1()),
             'start_time' :  datetime.now().isoformat(),
             'app_version' : app_version,
             'webdriver' : driver.capabilities,
             'search_terms' : args.search_terms,
-            'ignore_list' : args.ignore_list
+            'ignore_list' : ignore_list
         },
         'results' : []
     }
@@ -128,7 +139,7 @@ def main():
     driver.save_screenshot(f"{session['session']['uuid']}-{session['session']['search_terms']}.png")
 
     ## Visit every ad in the ad results
-    print(f'Ignore list: {args.ignore_list}') if args.verbose else None
+    print(f'Ignore list: {ignore_list}') if args.verbose else None
 
     # Exam every ad on the 1st search results page
     for ad in ads:
@@ -159,9 +170,9 @@ def main():
         else:
             alink = None
 
-        if hostname in args.ignore_list:
+        if not hostname in ignore_list:
             # Do not investigate ads for hostnames on our ignore list
-            log['ignored'] = True
+            log['ignored'] = False
 
             # Open the link for the ad in a new window
             # Q :   Will this correctly set the referer? Or do I need do something else?
@@ -194,8 +205,8 @@ def main():
             driver.switch_to.window(driver.window_handles[0])
             
         else:
-            # The ad is not on our ignore list
-            log['ignored'] = False
+            # The ad is on our ignore list
+            log['ignored'] = True
         
         session['results'].append(log)
     # follow the first unapproved ad url
