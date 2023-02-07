@@ -224,7 +224,7 @@ def main():
     if args.output_file:
         output_file = args.output_file
     else:
-        output_file = f'{session["session"]["search_terms"]}-{session["session"]["uuid"]}.json'
+        output_file = f'{session["session"]["uuid"]}-{session["session"]["search_terms"]}.json'
         
     # save session output to json file
     with open(output_file, "w") as outfile:
