@@ -74,13 +74,14 @@ def main():
 
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('-s', '--search-terms', dest='search_terms', type=str, help='Google search query')
-    parser.add_argument('-i', '--ignore-site', dest='ignore_list', action='append', type=str, help='DNS name to ignore in google ads. Can be specified multiple times.')
+    parser.add_argument('-i', '--ignore-site', dest='ignore_list', default='', action='append', type=str, help='DNS name to ignore in google ads. Can be specified multiple times.')
     parser.add_argument('-f', '--ignore-file', dest='ignore_list_file', type=str, help='A file with DNS names to ignore in google ads. One hostname per line.')
     parser.add_argument('-x', '--x-position', dest='x_pos', type=int, default=0, help='X-axis position for the browser window.')
     parser.add_argument('-y', '--y-position', dest='y_pos', type=int, default=0, help='Y-axis position for the browsre window.')
     parser.add_argument('-w', '--width', dest="width", type=int, default=1920, help='Width of the browser window.')
     parser.add_argument('-t', '--height', dest="height", type=int, default=1080, help='Height of the browser window.')  
     parser.add_argument('-o', '--output-file', dest="output_file", type=str, help='Save to specified output file in JSON format. Default is named with search terms and a UUID.')
+    parser.add_argument('-l', '--headless', action='store_true', help='Run in headless mode. Chrome with no visible window.')
     # TODO: parser.add_argument('-a', '--user-agent', dest="user_agent", type=str, help='User-agent to use instead of the default.')
     # TODO: Support changing the browser used by WebDriver (this requires changing search/xpath/css/Key syntax)
     # TODO: Detect operating system (this requires Key syntax changes maybe)
@@ -88,9 +89,12 @@ def main():
 #    parser.add_argument('', type=shelp='')
     args = parser.parse_args()
 
+    ignore_list = []
+    ignore_list += args.ignore_list
+
     if args.ignore_list_file:
         try:
-            ignore_list = args.ignore_list + load_ignore_list_from_file(args.ignore_list_file)
+            ignore_list += load_ignore_list_from_file(args.ignore_list_file)
         except:
             print(f'Failed to load ignore list from {args.ignore_list_file}.') if args.verbose else None
 
@@ -99,9 +103,17 @@ def main():
 #    driver = webdriver.Chrome(profile)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
+    if args.headless:
+        options.add_argument('--headless')
+        options.add_argument('--disable-gpu')
+        print('Running headless. No window will be displayed. Screenshots will still be taken.') if args.verbose else None
+
     driver = webdriver.Chrome(options=options)
-    driver.set_window_position(args.x_pos, args.y_pos)
-    driver.set_window_size(args.width, args.height)
+
+    if not args.headless:
+        driver.set_window_position(args.x_pos, args.y_pos)
+        driver.set_window_size(args.width, args.height)
 
     # Start logging our session
     session = { 
