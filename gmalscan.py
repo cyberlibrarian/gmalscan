@@ -17,17 +17,14 @@ The output will include:
 #########################################################################
 #### TODO:
 ####    - save webdriver ad elements in serialized (pickle?) format
-####    - save screenshots of all visited pages
 ####    - save the performance data from webdriver, and extract history
-####    - visite ad links, find download links, and download files
+####    - download malware files
 ####    - submit downloaded files to sandbox APIs and record links
-####    - parse out ad metadata and save to database or CSV
-####    - save the outer html for every ad
-####    - screenshot the ad's DIV element seperatly from the page
+####    - screenshot the full page not just the visible portion
 ####    - command line args to print different output in different formats
-####    - load search specifications with ignore list from a file
 ####    - extract metdata about IP address and DNS at the time of lookup
 ####        -- this is good threat intel as domains may fast flux
+####        -- looking it up later might not be so helpful, it might change
 ####    - save full pages from sites linked to by ads as they may 
 ####      go offline and not be fetchable later.
 #########################################################################
@@ -57,6 +54,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 
 def load_list_from_file(filename):
     """ Load a list of hostnames to ignore from a file and return as a list """
+    
     with open(filename) as hostnames:
         return [hostname.rstrip() for hostname in hostnames]
     
@@ -83,11 +81,11 @@ def main():
     parser.add_argument('-t', '--height', dest="height", type=int, default=1080, help='Height of the browser window.')  
     parser.add_argument('-o', '--output-file', dest="output_file", type=str, help='Save to specified output file in JSON format. Default is named with search terms and a UUID.')
     parser.add_argument('-l', '--headless', action='store_true', help='Run in headless mode. Chrome with no visible window.')
+    parser.add_argument('--bottom', dest='scan_bottom_ads', action='store_true', default=False, help='Scan Bottom Ad Words. Default is to not scan bottom ads.')
     # TODO: parser.add_argument('-a', '--user-agent', dest="user_agent", type=str, help='User-agent to use instead of the default.')
     # TODO: Support changing the browser used by WebDriver (this requires changing search/xpath/css/Key syntax)
     # TODO: Detect operating system (this requires Key syntax changes maybe)
         
-#    parser.add_argument('', type=shelp='')
     args = parser.parse_args()
 
     search_terms = []
@@ -130,6 +128,7 @@ def main():
         driver.set_window_size(args.width, args.height)
 
     results = []
+    
     for search_term in search_terms:
 
         # Start logging our session
@@ -150,7 +149,7 @@ def main():
         # Make sure we got the Google search page and not another page
         title = driver.title
         assert title == "Google"
-        driver.implicitly_wait(5)
+        driver.implicitly_wait(2)
 
     #    text_box = driver.find_element(by=By.CSS_SELECTOR, value='[name="q"]')
     #    submit_button = driver.find_element(by=By.TAG_NAME, value="input")
@@ -162,15 +161,27 @@ def main():
         driver.find_element(By.NAME, "q").send_keys(search_term)
         driver.find_element(By.NAME, "q").send_keys(Keys.ENTER)
 
-        # look for ads anchor tags
-        # We need tags that have data-rw attributes; they may optionally have data-pcu tags, we want to record the entire tag though
-        ads = driver.find_elements(By.CSS_SELECTOR, 'a[data-rw]')
-        
+        # screenshot the search results page
         driver.save_screenshot(f"{session['session']['uuid']}-{search_term}.png")
         session['session']['search_screenshot'] = f"{session['session']['uuid']}-{search_term}.png"
 
-        ## Visit every ad in the ad results
+        # look for ads anchor tags, separately in top ads and bottom ads
+        try:
+            ads = driver.find_elements(By.CSS_SELECTOR, 'div[id=taw] div[data-text-ad] :not(div[role=listitem]) > a[data-rw]')
+        except:
+            top_ads = None
 
+        if args.scan_bottom_ads:
+            try:
+                bottom_ads = driver.find_elements(By.CSS_SELECTOR, 'div[id=bottomads] div[data-text-ad] :not(div.dcuivd) > a[data-rw]') # these tend to have more download links than top ads
+                ads += bottom_ads
+                bottom_ad_count = len(bottom_ads)
+            except:
+                bottom_ads = None
+                bottom_ad_count = 0
+
+        print(f'-----------------------------------------')
+        print(f'Found {len(ads)} ads for {search_term} ({bottom_ad_count} bottom ads)') if args.verbose else None
         # Exam every ad on the 1st search results page
         for ad in ads:
             log = {}
@@ -192,15 +203,23 @@ def main():
             log['ihtlm'] = ad.get_attribute('innerHTML')
             try:
                 aspan = ad.find_element(By.CSS_SELECTOR, 'span[data-dtld]')
+                dtld = aspan.get_attribute('data-dtld')
+                log['dtld'] = dtld
             except:
                 aspan = None
 
             if aspan:
-                log['alink'] = aspan.get_attribute('innerHTML')
+                alink = aspan.get_attribute('innerHTML')
+                log['alink'] = alink
             else:
                 alink = None
+            
+            downlinks = []
 
-            if not hostname in ignore_list:
+            if "softonic.com" in hostname:
+                log['ignored'] = True
+
+            elif not hostname in ignore_list:
                 # Do not investigate ads for hostnames on our ignore list
                 log['ignored'] = False
 
@@ -234,7 +253,10 @@ def main():
                         downlink = {}
                         downlink['ohtml'] = download.get_attribute('outerHTML')
                         downlink['ihtml'] = download.get_attribute('innerHTML')
-                    
+                        downlink['href'] = download.get_attribute('href')
+                        downlinks.append(downlink)
+
+                    log['downlinks'] = downlinks
                     # close the tab and return to the original window
                     driver.close()
                     driver.switch_to.window(driver.window_handles[0])
@@ -243,15 +265,26 @@ def main():
                 # The ad is on our ignore list
                 log['ignored'] = True
             
+            if log['ignored']:
+                ignored='Ignored'
+            else:
+                ignored='Visited'
+
+            if len(downlinks):
+                downhref = downlinks[0]['href']
+            else:
+                downhref = 'None'
+
+            print(f"{search_term}, {hostname}, {dtld}, {href}, {ignored}, {downhref}") if args.verbose else None
+
             session['results'].append(log)
 
         results.append(session)
         
         # follow the first unapproved ad url
     driver.quit()
-
     
-    print(json.dumps(results, indent=4)) if args.verbose else None
+    #print(json.dumps(results, indent=4)) if args.verbose else None
     if args.output_file:
         output_file = args.output_file
     else:
